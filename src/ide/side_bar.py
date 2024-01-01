@@ -449,7 +449,7 @@ def builder(page,hh,insp,lista):
         tab = ft.Tab(
                 text=file,
                 icon=ft.icons.INSERT_DRIVE_FILE_SHARP,
-                content=WorkSpace.file_builder(file),
+                content=WorkSpace.file_builder(file,hh),
         )
         hh.tabs.append(tab)
 

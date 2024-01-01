@@ -51,7 +51,7 @@ def inspector_obj(insp,data,varname):
             tooltip=f"{type(data)}:{varname}",
         )
 
-def block(data,type="code"):
+def block(tabelle,data,type="code"):
     
     out = None
     if type == 'code':
@@ -71,13 +71,37 @@ def block(data,type="code"):
             on_tap_link=lambda e: page.launch_url(e.data),
         )
 
-    zz = ft.Container(padding=6,content=ft.Row(spacing=10,alignment=ft.MainAxisAlignment.END, controls=[ft.FilledButton("Top", icon="add"),ft.FilledButton("Bottom", icon="add"),ft.FilledButton("Save", icon="save"),ft.FilledButton("Delete", icon=ft.icons.DELETE),]))
+    async def action_save(e):
+        file = ""
+        bottoni = tabelle.tabs[0].content.controls[0].controls[0]
+        #box = block.content.controls[0].controls[0]
+        try:
+            print(dir(tabelle.tabs))
+            print(tabelle.selected_index)
+            #print()
+            f = open(tabelle.tabs[tabelle.selected_index].text, "w")
+            for block in tabelle.tabs[tabelle.selected_index].content.controls:
+                f.write(block.controls[0].content.value)
+                #print(block.controls[0].controls.content.value)
+            f.close()
+        except Exception as e:
+            print(e)
+        
+        #e.control.disabled = True
+        await e.page.update_async()
+
+    zz = ft.Container(padding=6,content=ft.Row(spacing=10,alignment=ft.MainAxisAlignment.END, controls=[
+        ft.FilledButton("Top", icon="add"),
+        ft.FilledButton("Bottom", icon="add"),
+        ft.FilledButton("Save", icon="save",on_click=action_save),
+        ft.FilledButton("Delete", icon=ft.icons.DELETE),
+        ]))
     pp = ft.Container(padding=10,content=out,bgcolor=ft.colors.WHITE)
 
     return ft.Stack([pp,zz])
 
 
-def file_builder(file):
+def file_builder(file,tabs):
     lv = ft.ListView([],expand=True, spacing=10, padding=20)
     #lv.controls.append(ft.Text(f"Line {count}"))
     #async with aiofiles.open(file, mode='r') as f:
@@ -123,8 +147,8 @@ def file_builder(file):
     for blocco in blocchi:
         if blocco.count("'''") == 2:
             g =blocco.replace("'''", '').strip()
-            lv.controls.append(block(g,"s"))
-        else:lv.controls.append(block(blocco.strip()))
+            lv.controls.append(block(tabs,g,"s"))
+        else:lv.controls.append(block(tabs,blocco.strip()))
 
     return lv
 
@@ -216,15 +240,6 @@ def builder(page,lista):
         ],
         expand=1,
     )
-
-
-
-    
-
-
-    async def button_click(e):
-        await asyncio.sleep(1)
-        await page.add_async(ft.Text("Hello!"))
 
     async def move_divider_top(e: ft.DragUpdateEvent):
         tot = c.height + e.delta_y

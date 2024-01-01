@@ -6,6 +6,8 @@ import work_space as WorkSpace
 def builder_root(path,view,event=None):
     print("::",path)
     for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        files = [f for f in files if not f.startswith('.')]
         print(root)
         for file in files:
             view.rows.append(ft.DataRow(

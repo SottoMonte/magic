@@ -80,8 +80,14 @@ def block(tabelle,data,type="code"):
             print(tabelle.selected_index)
             #print()
             f = open(tabelle.tabs[tabelle.selected_index].text, "w")
+            first = True
             for block in tabelle.tabs[tabelle.selected_index].content.controls:
-                f.write(block.controls[0].content.value)
+                #print(block.controls[0].content.value[-1:])
+                if first == True:
+                    f.write(block.controls[0].content.value)
+                    first = False
+                else:
+                    f.write('\n'+block.controls[0].content.value)
                 #print(block.controls[0].controls.content.value)
             f.close()
         except Exception as e:
@@ -90,11 +96,71 @@ def block(tabelle,data,type="code"):
         #e.control.disabled = True
         await e.page.update_async()
 
+    async def action_delete(e):
+        file = ""
+        #box = block.content.controls[0].controls[0]
+        try:
+            print(dir(tabelle.tabs))
+            print(tabelle.selected_index)
+            
+            for block in tabelle.tabs[tabelle.selected_index].content.controls:
+                if block.controls[1].content.controls[3].uid == e.target:
+                    tabelle.tabs[tabelle.selected_index].content.controls.remove(block)
+    
+
+        except Exception as e:
+            print(e)
+        
+        #e.control.disabled = True
+        await e.page.update_async()
+
+    async def action_add_top(e):
+        file = ""
+        #box = block.content.controls[0].controls[0]
+        try:
+            print(dir(tabelle.tabs))
+            print(tabelle.selected_index)
+            
+            for blockk in tabelle.tabs[tabelle.selected_index].content.controls:
+                if blockk.controls[1].content.controls[0].uid == e.target:
+                    idx = tabelle.tabs[tabelle.selected_index].content.controls.index(blockk)
+                    print(idx)
+                    tabelle.tabs[tabelle.selected_index].content.controls.insert(idx,block(tabelle,"","code"))
+                    break
+    
+
+        except Exception as e:
+            print(e)
+        
+        #e.control.disabled = True
+        await e.page.update_async()
+
+    async def action_add_bot(e):
+        file = ""
+        #box = block.content.controls[0].controls[0]
+        try:
+            print(dir(tabelle.tabs))
+            print(tabelle.selected_index)
+            
+            for blockk in tabelle.tabs[tabelle.selected_index].content.controls:
+                if blockk.controls[1].content.controls[1].uid == e.target:
+                    idx = tabelle.tabs[tabelle.selected_index].content.controls.index(blockk)
+                    tabelle.tabs[tabelle.selected_index].content.controls.insert(idx+1,block(tabelle,"","code"))
+                    break
+                    
+    
+
+        except Exception as e:
+            print(e)
+        
+        #e.control.disabled = True
+        await e.page.update_async()
+
     zz = ft.Container(padding=6,content=ft.Row(spacing=10,alignment=ft.MainAxisAlignment.END, controls=[
-        ft.FilledButton("Top", icon="add"),
-        ft.FilledButton("Bottom", icon="add"),
+        ft.FilledButton("Top", icon="add", on_click=action_add_top),
+        ft.FilledButton("Bottom", icon="add",on_click=action_add_bot),
         ft.FilledButton("Save", icon="save",on_click=action_save),
-        ft.FilledButton("Delete", icon=ft.icons.DELETE),
+        ft.FilledButton("Delete", icon=ft.icons.DELETE,on_click=action_delete),
         ]))
     pp = ft.Container(padding=10,content=out,bgcolor=ft.colors.WHITE)
 

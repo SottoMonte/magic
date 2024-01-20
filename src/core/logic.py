@@ -1,6 +1,8 @@
 import itertools
 from typing import TypeAlias,NewType
-
+'''
+# Test
+'''
 class TEST:
     def __init__(self, *model):
         self.model = model
@@ -18,138 +20,220 @@ class TEST:
             else:
                 print(f"{actual_name} passa il test con [{input_value}|{actual_data}]: {actual_result} in {function.identifier}")
 
-TARGET = "@TARGET@"
-OUTPUT = "@OUTPUT@"
-TRANSFORMED = "@TRANSFORMED@"
-TRANSFORMED2 = "@TRANSFORMED2@"
+TARGET = "_target"
+OUTPUT = tuple[bool, str, list]
 
+class BASE():
+    necessity = []
+    def change(self,work,args):
+        for x in work:
+            if type(work[x]) == type([]):
+                for idz, z in enumerate(work[x]):
+                    if z in args:
+                        work[x][idz] = args[z]
+            elif type(work[x]) == type(''):
+                if work[x] in args:
+                    work[x] = args[work[x]]
+    
+    def start(self,items):
+        self.necessity = []
+        for item in items:
+            if type(item) == type(""):
+                if item.startswith('_'):
+                    self.necessity.append(item)
+                
+    def splice(self,work,item):
+        for req in item.requirement():
+                
+            #print('TOT',tot)
+            if type(req) == type(''):
+                #print(work[TARGET])
+                if req.startswith('_') and req[1:].isdigit():
+                    if len(work[TARGET]) > int(req[1:]):
+                        work[req] = work[TARGET][int(req[1:])]
+                    else:
+                            work[req] = req
+                tt = req[1:].split(':')
+                if req.startswith('_') and len(tt) == 2:
+                    if len(work[TARGET]) >= 3:
+                        if tt[1] == '':
+                            work[req] = work[TARGET][int(tt[0]):]
+                        else:
+                            work[req] = work[TARGET][int(tt[0]):int(tt[1])]
+                    else:
+                        work[req] = req
+                        #print(work[req])
+                    
 
-class TRANSFORM():
-    def __init__(self,TRANSFORM=None,*args):
-        self.vars = args
-        self.function = TRANSFORM
-    def __call__(self, TARGET):
-        if self.vars[0] in TARGET:
-            return self.function(TARGET[self.vars[0]])
-        else:
-            pass
+            if req == '_first':
+                work['_first'] = work[TARGET][0]
+            if req == '_last':
+                work['_last'] = work[TARGET][-1]
 
-logic = tuple[bool, str, list]
+    def requirement(self):
+        return self.necessity
 
-
-class EXPRESSION():
+'''
+# Logic
+'''
+class EXPRESSION(BASE):
     def __init__(self, identifier, expression, **kwargs):
+        self.necessity = [TARGET]
         self.identifier = identifier
         self.logic = expression
-        self.kwargs = dict()
         #self.kwargs[TRANSFORMED] = kwargs.get("TRANSFORM")
-        self.do = kwargs
+        self.data = kwargs
 
-    def __call__(self, worker,target=None,**kwargs)-> logic:
-        # trasforma i dati 
-        new = dict(self.kwargs, **kwargs)
-        new[TARGET] = target
+        for x in kwargs:
+            self.necessity.append(x)
 
-        '''TEST=(SON,'X')
-        for x in self.do:
-            if self.do[x][1] in new:
-                new[x] = self.do[x][0](new[self.do[x][1]])'''
         
-        for x in self.do:
-            new[x] = self.do[x](new)
-        
-        return self.logic(new)
+
+    def __str__(self):
+        return f"{self.identifier} := {str(self.logic)}"
+
+    def requirement(self):
+        return self.logic.requirement()
     
-    def __getitem__(self, items):
-        print (type(items), items)
-        return True
+    def __call__(self, worker,target=None,**kwargs)-> OUTPUT:
+        # trasforma i dati 
+        new = dict(**kwargs)
 
-class EQL():
+        if type(target) == type(dict()):
+            new.update(target)
+        else:
+            new[TARGET] = target
+        
+        cc = None
+        
+        for d in self.data:
+            cc = self.data[d].COPY(worker)
+            #print(cc.GET())
+            if cc.GET() == 'FFF':
+                cc.SET_TEMP(worker,kwargs.copy())
+                #print("--------------------------------------------------------------------------")
+                new[d] = cc.TTT(worker)
+            else:
+                cc.SET_TEMP(worker,new[cc.GET()])
+            #print(cc.TTT)
+            if cc.TTT != None:
+                new[d] = cc.TTT(worker)
+            #print("###",new[d])
+
+        #print("------------------------------------------------------",self.identifier,new)
+        return self.logic(worker,new)
+
+class TRAN(BASE):
+    def __init__(self, logica,da,a,cont=False):
+        self.logica = logica
+        self.da = da
+        self.a = a
+        self.cont = cont
+        self.start([da])
+
+    def __str__(self):
+        return f"{self.logica} == {self.a}"
+    
+    def __call__(self,worker, args):
+        
+        #print(args)
+        work = dict({})
+        if self.da in args:
+            
+            if self.cont == False:
+                work[self.a] = args[self.da]
+            else:
+                a = []
+                a.append(args[self.da])
+                work[self.a] = a
+                
+        
+        #print('#001 ',work,self.logica)
+
+        return self.logica(worker,work)
+
+class EQL(BASE):
     def __init__(self, A,B):
-        self.dat = dict()
+        self.A = A
+        self.B = B
+        self.start([A,B])
 
+    def __str__(self):
+        return f"{self.A} == {self.B}"
+    
+    def __call__(self,worker, args):
+        work = dict({'A':self.A,'B':self.B})
+        for x in work:
+            #print(x,work[x])  
+            if type(work[x]) == type(''):
+                #if work[x].startswith('@') and work[x][len(work[x])-1] == '@':
+                if work[x] in args:
+                    work[x] = args[work[x]]
+                        #print("ver11",args)
+
+        return OUTPUT((self.logic(work['A'],work["B"]),EQL.__name__,work))
+    
+    def logic(self,TARGET,TEST):
+        #print(type(TARGET),":",TARGET,"==",type(TEST),":",TEST)
+        if TARGET == TEST:return True
+        else: return False
+
+class EQL_LESS():
+    def __init__(self, A,B):
         self.A = A
         self.B = B
 
-        un = {'A':A,'B':B}
-        for x in un:
-            #print(un[x])
-            if type(un[x]) == type(""):
-                if un[x][0] == '@':
-                    self.dat[x] = un[x][1:]
-
-
-        
     def __str__(self):
-        return f"{self.A} == {self.B}"
-    def __call__(self, args):
-        work = dict({'A':self.A,'B':self.B})     
-        print(".....>",work,args)
-        for x in self.dat:
-            match x:
-                case 'A':
-                    if self.dat[x] in args:
-                        work['A'] = args[self.dat[x]]
-                    else:
-                        print("NON CE A")
-                        return (True,"EQL",[work])
-                case 'B':
-                    if self.dat[x] in args:
-                        work['B'] = args[self.dat[x]]
-                    else:
-                        print("NON CE B")
-                        return (True,"EQL",[work])
-        #args.clear()
-        return logic((self.logic(work['A'],work["B"]),"EQL",[work]))
+        return f"{self.A} <= {self.B}"
+    
+    def __call__(self,worker, args):
+        work = dict({'A':self.A,'B':self.B})
+        for x in work:
+            #print(x,work[x])  
+            if type(work[x]) == type(''):
+                #if work[x].startswith('@') and work[x][len(work[x])-1] == '@':
+                if work[x] in args:
+                    work[x] = args[work[x]]
+                        #print("ver11",args)
+
+        return OUTPUT((self.logic(work['A'],work["B"]),EQL.__name__,work))
     
     def logic(self,TARGET,TEST):
-        print(type(TARGET),":",TARGET,"==",type(TEST),":",TEST)
-        if TARGET == TEST:return True
+        #print(TARGET,TEST)
+        #print(type(TARGET),":",TARGET,"==",type(TEST),":",TEST)
+        if TARGET <= TEST:return True
         else: return False
 
-class COUNT():
-    def __init__(self, targer,count):
-        self.dat = dict()
-
+class COUNT(BASE):
+    def __init__(self, targer,count,counted,logic=EQL_LESS):
         self.target = targer
         self.count = count
-
-        un = {'A':targer,'B':count}
-        for x in un:
-            print(un[x])
-            if type(un[x]) == type(""):
-                if un[x][0] == '@':
-                    self.dat[x] = un[x][1:]
-
-
-        
+        self.counted = counted
+        #print(counted)
+        self.bb = logic
+        self.ll = logic(TARGET,counted)
+        self.start([targer,count,counted])
     def __str__(self):
-        return f"{self.A} == {self.B}"
-    def __call__(self, args):
-        work = dict({'A':self.A,'B':self.B})     
-        print(work,args)
-        for x in self.dat:
-            match x:
-                case 'A':
-                    if self.dat[x] in args:
-                        work['A'] = args[self.dat[x]]
-                    else:
-                        print("NON CE A")
-                        return (True,"EQL",[work])
-                case 'B':
-                    if self.dat[x] in args:
-                        work['B'] = args[self.dat[x]]
-                    else:
-                        print("NON CE B")
-                        return (True,"EQL",[work])
-        #args.clear()
-        return logic((self.logic(work['A'],work["B"]),"EQL",[work]))
-    
-    def logic(self,TARGET,TEST):
-        print(type(TARGET),":",TARGET,"==",type(TEST),":",TEST)
-        if TARGET == TEST:return True
-        else: return False
+        return str(self.ll).replace(TARGET,f"{self.count} in {self.target}")
+    def __call__(self,worker, args):
+        work = dict({'target':self.target,'count':self.count,'counted':self.counted})
+        for x in work:
+            if type(work[x]) == type(''):
+                #if work[x].startswith('@') and work[x][len(work[x])-1] == '@':
+                if work[x] in args:
+                    work[x] = args[work[x]]
+        #print(work)
+        self.ll = self.bb(TARGET,work['counted'])
 
+        return OUTPUT((self.logic(work['target'],work["count"]),COUNT.__name__,work))
+    
+    def logic(self,target,TEST):
+        #print("--------------->",target)
+        if self.ll(None,{TARGET:target.count(TEST)})[0]:
+            return True
+        else:
+            return False
+        
 class SORT():
     def __init__(self, GREATER,MINOR):
         self.target = GREATER
@@ -165,7 +249,7 @@ class SORT():
         if self.check == TARGET:
             sinstro = args[TARGET]
 
-        return logic((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
+        return OUTPUT((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
     
     def logic(self,TARGET,TEST):
         print(type(TARGET),":",TARGET,">",type(TEST),":",TEST)
@@ -187,161 +271,228 @@ class SORT_EQL():
         if self.check == TARGET:
             sinstro = args[TARGET]
 
-        return logic((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
+        return OUTPUT((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
     
     def logic(self,TARGET,TEST):
         print(type(TARGET),":",TARGET,"<",type(TEST),":",TEST)
         if TARGET >= TEST:return True
         else: return False
 
-class TYPE():
-    def __init__(self, A,B):
-        self.target = A
-        self.check = B
-    def __str__(self):
-        return " == "
-    def __call__(self, args):
-        destro,sinstro = self.target,self.check
-        print(args)
-        if self.target == TARGET:
-            destro = args[TARGET]
+class OR(BASE):
+    def __init__(self,*args):
+        self.items = args
+        self.necessity = []
+        for arg in args:
+            #print(arg)
+            self.necessity.append(arg.requirement())
+    def __repr__(self):
+        out = str(self.items[0])
+        for i in self.items[1:]:
+            out += ' | ' + str(i) 
+        return out
+    def __call__(self,worker,args):
+        work = {}
+        work.update(args)
+        self.change(work,args)
+        
+        vvv = []
+        ggg = [work]
+        for item in self.items:
+            self.splice(work,item)
+            vvv.append(item.identifier)
             
-        if self.check == TARGET:
-            sinstro = args[TARGET]
+            tested = item(worker,work)
+            ggg.append(tested[2])
+            
+            #print("TESTED ---------------------------------------",tested)
+            if tested[0] == True:
+                return (tested[0],item.identifier,ggg)
+        return (False,vvv,ggg)
 
-        return logic((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
-    
-    def logic(self,TARGET,TEST):
-        print(TARGET,TEST)
-        if TARGET == TEST:return True
-        else: return False
-
-class OR():
-    def __init__(self,*args):
+class AND(BASE):
+    def __init__(self,*args,**kwargs):
         self.items = args
+        self.stran = kwargs
+        self.necessity = []
+        for arg in args:
+            #print(arg)
+            cccc = arg.requirement()
+            
+            if len(cccc) <= 1:
+                self.necessity.append(cccc)
+            else:
+                for nnn in cccc:
+                    if len(nnn) != 0:
+                        self.necessity.append(nnn)
+                pass
     def __repr__(self):
+        out = str(self.items[0])
+        for i in self.items[1:]:
+            out += ' & ' + str(i) 
+        return out
+    def __call__(self,worker,args):
+        work = {}
+        work.update(args)
+        w_out = []
         
-        return "OR"
-    def __call__(self,*args):
-        for ITEM in self.items:
-            TESTED = ITEM(*args)
-            if TESTED[0] == True : return TESTED
-        return (False,repr(self),TARGET)
-
-class AND():
-    def __init__(self,*args):
-        self.items = args
-    def __repr__(self):
-        strig = "AND("
-        for x in self.items:
-            strig += repr(x) + ","
-        strig += ")"
-    def __call__(self,*args):
-        lis = []
-        for ITEM in self.items:
-            TESTED = ITEM(*args)
-            if TESTED[0] == False : return (TESTED[0],"AND",TESTED[2])
-        return (True,"AND",args)
-
-class EACH():
-    def __init__(self, check,*args):
-        self.args = args
-        self.check = check
-
-        self.dat = dict()
-        un = {'A':args[0],'B':""}
-        for x in un:
-            print(un[x])
-            if type(un[x]) == type(""):
-                try:
-                    if un[x][0] == '@':
-                        self.dat[x] = un[x][1:]
-                except:
-                    pass
+        self.change(work,args)
+        uni = {}
+        for itx,item in enumerate(self.items):
+            uni = {}
+            for req in self.stran:
                 
+                if req[1:] == str(itx):
+                    #print("-----------------------------------------------------------------",work[self.stran[req][0]])
+                    worker.job.SET_TEMP(worker,work[self.stran[req][0]])
+                    if self.stran[req][4] == False: 
+                        uni[self.stran[req][1]] = self.stran[req][2](worker.job,worker,*self.stran[req][3])
+                    else:
+                        uni[self.stran[req][1]] = [self.stran[req][2](worker.job,worker,*self.stran[req][3])]
+            
+            TESTED = item(worker,work|uni)
+            w_out.append(TESTED[2])
+            #print(TESTED)
+            if TESTED[0] == False : return (False,"AND",w_out)
+        return (True,"AND",w_out)
+
+class EACH(BASE):
+    def __init__(self, logic, target, compare):
+        self.target = target
+        self.compare = compare
+        self.check = logic
+        self.exem = logic(target,compare)
+        self.start([target,compare])
+
+
     def __repr__(self):
-        return f"EQL(DATA,DATA)"
-    def __call__(self, args):
-        work = dict({'A':self.args[0],'B':"self.target"})     
+        return str(self.exem).replace(str(self.compare),f"$next in {self.compare}")
+        #return "MINI"
+    
+    def __call__(self,worker, args):
+        # Data job
+        work = dict({'target':self.target,'com':self.compare.copy()})
         #print(work,args)
-        for x in self.dat:
-            match x:
-                case 'A':
-                    if self.dat[x] in args:
-                        work['A'] = args[self.dat[x]]
-                    else:
-                        #print("NON CE A")
-                        return (True,"EQL",[work])
-                case 'B':
-                    if self.dat[x] in args:
-                        work['B'] = args[self.dat[x]]
-                    else:
-                        #print("NON CE B")
-                        return (True,"EQL",[work])
-        print("---->",work)
-        #if hasattr(work['A'],'__iter__'):
-        if True:
-            for x in args:
-                print("-->",x)
+        # Trasform data
+        for x in work:
+            if type(work[x]) == type([]):
+                for idz, z in enumerate(work[x]):
+                    if z in args:
+                        work[x][idz] = args[z]
+            elif type(work[x]) == type(''):
+                if work[x] in args:
+                    work[x] = args[work[x]]
 
-            logic((False,"tt",[]))
+        lall = []
+        temp = []
+        # Do job
+        for x in work['target']:
+            temp = []
+            for target in work['com']:
+                #print("=====>",target,x)
+                check_d = self.check(target,x)
+                check = check_d(worker,work)
+                temp.append(check[0])
+            lall.append(any(temp))
+
+        if len(lall) == 0:
+            return (False,'EACH',work)
         
+        #print(lall)
+        return (all(lall),"minimum",work)
+    
+class EACH2(BASE):
+    def __init__(self, logic, target):
+        self.target = target
+        self.check = logic
+        #self.exem = logic(target,compare)
+        self.start([target])
 
-class EACH_t():
-    def __init__(self, check,a,b):
-        self.target = a
-        self.targets = b
-        self.check = check
-        self.dat = dict()
-        un = {'A':b,'B':a}
-        for x in un:
-            #print(un[x])
-            if type(un[x]) == type(""):
-                if un[x][0] == '@':
-                    self.dat[x] = un[x][1:]
 
     def __repr__(self):
-        return f"EQL(DATA,DATA)"
-    def __call__(self, args):
-        out = []
-        work = dict({'A':self.targets,'B':self.target})
-        for x in self.dat:
-            match x:
-                case 'A':
-                    if self.dat[x] in args:
-                        work['A'] = args[self.dat[x]]
-                    else:
-                        #print("NON CE A")
-                        return (True,"EQL",[work])
-                case 'B':
-                    if self.dat[x] in args:
-                        work['B'] = args[self.dat[x]]
-                    else:
-                        #print("NON CE B")
-                        return (True,"EQL",[work])
-        print("---->",work)
-        if hasattr(work['A'],'__iter__'):
-            if hasattr(work['B'],'__iter__'):
-                for x in  work['A']:
-                    w = []
-                    for y in work['B']:
-                        a = self.check(x,y)
-                        #print(x,y,a(args))
-                        w.append(a(args)[0])
-                    out.append(any(w))
-                return logic((all(out),"",[]))
-            else:
-                for x in  work['A']:
-                    a = self.check(x,y)
-                    out.append(a(args)[0])
-                    out.append(any(w))
-                return logic((all(out),"",[]))
+        return 'str(self.exem).replace(str(self.compare),f"$next in {self.compare}")'
+        #return "MINI"
+    
+    def __call__(self,worker, args):
+        # Data job
+        work = dict({'target':self.target})
+        self.change(work,args)
+        lall = []
+        temp = []
+        # Do job
+        for x in work['target']:
+            check = self.check(worker,x)
+            
+            lall.append(check[0])
 
-        else:
-            if hasattr(work['B'],'__iter__'):
-                for x in  work['B']:
-                    a = self.check(x,work['A'])
-                    out.append(a(args)[0])
-                return logic((all(out),"",[]))
-            else:
-                return logic((self.check(work['B'],work['A']),"",[]))
+        #print("4444 ###########",all(lall))
+        return (all(lall),"minimum",work)
+
+class EACHONE():
+    def __init__(self, logic, target, compare):
+        self.target = target
+        self.compare = compare
+        self.check = logic
+        self.exem = logic(target,compare)
+
+    def __repr__(self):
+        return str(self.exem).replace(str(self.compare),f"$next in {self.compare}")
+        #return "MINI"
+    
+    def __call__(self,worker, args):
+        # Data job
+        work = dict({'target':self.target,'com':self.compare.copy()})
+        #print(work,args)
+        # Trasform data
+        for x in work:
+            if type(work[x]) == type([]):
+                for idz, z in enumerate(work[x]):
+                    if z in args:
+                        work[x][idz] = args[z]
+            elif type(work[x]) == type(''):
+                if work[x] in args:
+                    work[x] = args[work[x]]
+
+        lall = []
+        temp = []
+        # Do job
+        for x in work['target']:
+            temp = []
+            for target in work['com']:
+                #print("=====>",target,x)
+                check_d = self.check(target,x)
+                check = check_d(worker,work)
+                temp.append(check[0])
+            lall.append(any(temp))
+
+        
+        #print(lall)
+        return (all(lall),"minimum",work)
+#maximum
+        
+class SEQUENTIAL():
+    def __init__(self, logic, target, compare):
+        self.target = target
+        self.targets = compare
+        self.check = logic
+        self.exem = logic(target,compare)
+
+    def __repr__(self):
+        return str(self.exem).replace(str(self.targets),f"$next in {self.targets}")
+        #return "MINI"
+    
+    def __call__(self, w,args):
+        # Data job
+        work = dict({'target':self.target,'check':self.targets})
+        #print(work,args)
+        # Trasform data
+        for x in work:
+            if type(work[x]) == type(''):
+                if work[x] in args:
+                    work[x] = args[work[x]]
+        # Do job
+        for idx, target in enumerate(work['target']):
+            check_d = self.check(str(type(target)),work['check'][idx])
+            check = check_d(w,work)
+            if not check[0]:return (False,"seq",work)
+
+        return (True,"seq",work)

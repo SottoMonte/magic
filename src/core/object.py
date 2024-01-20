@@ -46,54 +46,39 @@ class OBJECT:
             pass
         except KeyError as ke:
             pass
-    
-    # funzione che restituisce un decoratore che si occupa degli eventi e identità di una azione
-    def ACTION_ASYNC(argument=None,events=None):
-        def decorator(function):
-            async def wrapper(*arg, **kwargs):
-                print("INIZIO ACTION")
-                print(*arg,argument,events)
-                try:
-                    ss = []
-                    for x in arg[1:]:
-                        print("-->>>",x)
-                        ss.append(str(type(x)))
-                    print("####",ss)
-                    gg = argument(arg[0],ss)[0]
-                    if gg:
-                        output = await function(*arg, **kwargs)
-                        arg[0].SIGNAL(function.__name__)
-                        if argument(arg[0],output)[0]:
-                            return output
-                        else:
-                            print("errore output")
-                    else:
-                        print("errore identita") 
-                    
 
-                except Exception as e:
-                    print('Something went wrong.', e)
-                print("FINE ACTION")
-            return wrapper
-        return decorator
-
-    def ACTION(argument=None,events=None):
+    def ACTION(events=None,bond=None):
         def decorator(function):
             async def wrapper(*args, **kwargs):
-                #print(*args,argument,events)
                 try:
+                    #print(*args,argument,events)
+                    output = None
                     worker = None
+                    target = None
+                    where = 0
                     for arg in args:
                         if str(type(arg)).find('worker.WORKER') != -1:
                             worker = arg
+                            if where == 0:
+                                target = args[1]
+                            else:target = args[0]
+                            where += 1
                     # run function
-                    output = function(*args, **kwargs)
+                    if bond != None:
+                        check = bond(worker,args[2:])
+                        if check[0]:
+                            worker.app.GET().logger.debug(f"{function.__name__} pass the bound {check[1]} with {bond} and data := {check[2]}")
+                            output = function(*args, **kwargs)
+                        else:
+                            worker.app.GET().logger.error(f"{function.__name__} Not pass the bound {check[1]} with {bond} and data := {check[2]}")
+                    else:
+                        output = function(*args, **kwargs)
                     # run event
                     if worker != None:
                         _ = await worker.SIGNAL(function.__name__)
                     return output
                 except Exception as e:
-                    print('Something went wrong.', e)
+                    worker.app.GET().logger.error(f"the {function.__name__} raise Exception {e}")
             return wrapper
         return decorator
 

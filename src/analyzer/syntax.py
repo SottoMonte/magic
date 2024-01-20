@@ -1,90 +1,54 @@
-import WORKER
-import GRAMMAR
-from STRING import SPLIT
-from BOOLEAN import OR
+import worker
+import grammar
+#from STRING import SPLIT
+#from BOOLEAN import OR
 import asyncio
 
 '''
 # Input(TOKEN) | Output(AST)
 '''
-async def PARSER(WORKER:WORKER.WORKER):
+async def PARSER(WORKER:worker.WORKER):
     '''
     ||| Lista di tokens.
     '''
     TOKENS = list()
+
+    async def INSTU(self,end):
+        if self[1] != '\n' and self[1] != ' ' and self[1] != "\n\n":
+            INSTU.TOKENS.append(self)
+        
+        #for instruction in [grammar.INSTRUCTION_CALL,grammar.TUPLE,grammar.INSTRUCTION_ASSIGNMENT,grammar.INSTRUCTION_ALLOCATION,grammar.INSTRUCTION_DEALLOCATE]:
+        for instruction in [grammar.INSTRUCTION_CALL,grammar.INSTRUCTION_ALLOCATION]:
+            #print(len(INSTU.TOKENS),instruction.requirement())
+            #if len(INSTU.TOKENS) == len(instruction.requirement()):
+            if len(INSTU.TOKENS) != 0:
+                dd = []
+                for i in range(0,len(INSTU.TOKENS)):
+                    dd.append(INSTU.TOKENS[i][1])
+                
+                check = instruction(WORKER,dd)
+                print(dd)
+                if check[0]:
+                    print(check)
+                    #await WORKER.ECHO(check)
+                    await WORKER.SPEAK('VALIDATOR',check)
+                    INSTU.TOKENS.clear()
+                else:
+                    print(check)
+                    pass
+
+    INSTU.TOKENS = []
     '''
     ||| Ascolta tutto il flusso di tokens e lo salva in TOKENS.
     '''
     while True:  
         TOKEN = await WORKER.HEAR()
+        await WORKER.ECHO(TOKEN)
         if TOKEN == None:break
         TOKENS.append(TOKEN)
-        #print("----------------------------------------=>",TOKEN)
-    '''
-    ||| Crea e invia un flusso di istruzioni a {SEMANTIC}.
-    '''
-    def UNION(TARGET):
-        OUT = ""
-        for ITEM in TARGET:
-            OUT += ITEM
-        return OUT
-    '''
-    ||| Generatore albero di sintassi.
-    '''
-    def AST(TARGET):
-        TREE = []
-        if type(TARGET) == type(tuple):
-            print("EXITTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
-            return TARGET
-        else:
-            A = UNION(TARGET)
-            CHECK,SUBJECT,DATA = OR([A],[GRAMMAR.SET,GRAMMAR.PAIR,GRAMMAR.TUPLE,GRAMMAR.STRING,GRAMMAR.NUMBER,GRAMMAR.INSTRUCTION_DECLARATION,GRAMMAR.INSTRUCTION_CALL,GRAMMAR.INSTRUCTION_ASSIGNMENT])
-            print(SUBJECT)
-            if CHECK == True:
-                match SUBJECT[0]:
-                    case GRAMMAR.INSTRUCTION_ASSIGNMENT.__name__:
-                        print(f"[{GRAMMAR.INSTRUCTION_ASSIGNMENT.__name__}]")
-                        return (GRAMMAR.INSTRUCTION_ASSIGNMENT.__name__,DATA[0])
-                    case GRAMMAR.INSTRUCTION_CALL.__name__:
-                        print(f"[{GRAMMAR.INSTRUCTION_CALL.__name__}]")
-                        return (GRAMMAR.INSTRUCTION_CALL.__name__,DATA[0])
-                    case GRAMMAR.INSTRUCTION_DECLARATION.__name__:
-                        print(f"[{GRAMMAR.INSTRUCTION_DECLARATION.__name__}]")
-                        return (GRAMMAR.INSTRUCTION_DECLARATION.__name__,DATA[0])
-                    case GRAMMAR.STRING.__name__:
-                        print(f"[{GRAMMAR.STRING.__name__}]")
-                        return (GRAMMAR.STRING.__name__,DATA[0])
-                    case GRAMMAR.NUMBER.__name__:
-                        print(f"[{GRAMMAR.NUMBER.__name__}]")
-                        print(CHECK,SUBJECT[0],DATA[0])
-                        return (GRAMMAR.NUMBER.__name__,DATA[0])
-                    case GRAMMAR.PAIR.__name__:
-                        print(f"[{GRAMMAR.PAIR.__name__}]")
-                        return (GRAMMAR.PAIR.__name__,DATA[0])
-                    case GRAMMAR.SET.__name__:
-                        print(f"[{GRAMMAR.SET.__name__}]")
-                        for X in DATA[0]:
-                            TREE.append(AST(X))
-                        return (GRAMMAR.SET.__name__,TREE)
-                    case GRAMMAR.PAIR.__name__:
-                        print(f"[{GRAMMAR.PAIR.__name__}]")
-                        for X in DATA[0]:
-                            TREE.append(AST(X))
-                        return (GRAMMAR.PAIR.__name__,TREE)
-                    case GRAMMAR.TUPLE.__name__:
-                        print(f"[{GRAMMAR.TUPLE.__name__}]")
-                        for X in DATA[0]:
-                            TREE.append(AST(X))
-                        return (GRAMMAR.TUPLE.__name__,TREE)
-            else:
-                # TROVA rig col di un errore
-                stringa = open('sorgente.sl', 'r').read()
-                sottostringa = A
-                posizione = stringa.find(sottostringa)
-                riga = stringa.count("\n", 0, posizione) + 1
-                colonna = posizione - stringa.rfind("\n", 0, posizione)
-                print(f"SyntaxError: invalid syntax [{A}] at Row {riga}-Col {colonna}")
-                exit(1)
-    FFF = AST(TOKENS)
-    #print(FFF)
-    await WORKER.SPEAK('VALIDATOR',FFF)
+    
+    
+    
+    await WORKER.FOREACH(TOKENS,INSTU)
+    await WORKER.SPEAK('VALIDATOR',0)
+    

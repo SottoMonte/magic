@@ -1,6 +1,8 @@
-import WORKER
-import GRAMMAR
-from STRING import SPLIT
+import sys
+sys.path.append('src/core/')
+import worker
+import grammar
+#from STRING import SPLIT
 import asyncio
 
 
@@ -23,7 +25,7 @@ def TYPE(DB,NAME,VALUE):
     if(TARGET != VALUE):return False
     else:return True 
 
-async def VALIDATOR(WORKER:WORKER.WORKER):
+async def VALIDATOR(WORKER:worker.WORKER):
     '''
     ||| Spazio nomi
     '''
@@ -31,13 +33,14 @@ async def VALIDATOR(WORKER:WORKER.WORKER):
     '''
     ||| Ascolta finche non riceve AST
     '''
-    while True:  
+    while True:
         AST = await WORKER.HEAR()
-        if AST != None:break
+        await WORKER.ECHO(AST)
+        if AST == 0:break
     '''
     ||| Valida le istruzioni sicurezza tipi, gestione della memoria, gestione variabili
     '''
-    for INSTRUCTION in AST[1]:
+    '''for INSTRUCTION in AST[1]:
         print(NameSpace)
         match INSTRUCTION[0]:
             case GRAMMAR.INSTRUCTION_CALL.__name__:
@@ -103,8 +106,8 @@ async def VALIDATOR(WORKER:WORKER.WORKER):
                 else:
                     print(f"VARIABILE {name} NON DECHIARATA")
                     
-                print(INSTRUCTION[1][0])
+                print(INSTRUCTION[1][0])'''
     '''
     ||| Invia il flusso validato a generatore
     '''
-    await WORKER.SPEAK('CODE',AST)
+    #await WORKER.SPEAK('CODE',AST)

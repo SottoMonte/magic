@@ -61,6 +61,6 @@ async def Test(worker:worker):
     pass
 # main
 if __name__ == "__main__":
-    app = application.sloth("example.cli",sys.argv,{'CLI':application.CLI,'GUI':ide.GUI})
+    app = application.mathmagic("example.cli",sys.argv,{application.INTERFACE.CLI:application.CLI,application.INTERFACE.GUI:ide.GUI})
     #app.JOB(Test)
     app.RUN()

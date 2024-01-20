@@ -1,17 +1,22 @@
 import sys
-sys.path.append('../sloth/core/')
+sys.path.append('src/core/')
 import worker
 import application
 import asyncio
 import logic
 
+async def Tester(worker):
+    test = logic.TEST(
+        (logic.eql,[1,1],True),
+    )
 
-
-async def Test(worker:worker):
-
-    pass
+    print(test.check(worker))
 
 if __name__ == "__main__":
-    cc = logic.EXPRESSION("cc",logic.EQL('a',logic.TARGET))
+    
 
-    cc(None,B="ciao")
+    app = application.sloth("example.cli",sys.argv,{})
+    app.JOB(Tester)
+    app.RUN()
+
+    

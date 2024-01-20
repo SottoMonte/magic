@@ -99,7 +99,7 @@ class CustomFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
-class mathmagic(object.OBJECT):
+class mathemagic(object.OBJECT):
     def __init__(
             self, 
             identifier:str,

@@ -40,7 +40,7 @@ async def Consumer2(worker):
     
 # Main
 if __name__ == "__main__":
-    app = application.mathmagic("example.cli",sys.argv,{application.INTERFACE.CLI:application.CLI})
+    app = application.mathemagic("example.cli",sys.argv,{application.INTERFACE.CLI:application.CLI})
     app.JOB(Consumer)
     app.JOB(Consumer2)
     app.RUN()

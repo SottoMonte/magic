@@ -5,6 +5,8 @@ INTEGER,STRING:totale:="10";
 
 LOGIC:ID := [TARGET]CC::FIRST: CC == "A"
 
+[[][][]]
+
 nome = 1234;
 all = 0110110;
 nome = all;

@@ -1,498 +1,672 @@
 import itertools
 from typing import TypeAlias,NewType
+from dataclasses import dataclass,asdict,astuple
+import importlib
+#from data import Metadato,SPLIT,VARIABLE
+
+@dataclass(frozen=True)
+class Metadata:
+    type: str
+    value: str
+    identifier: str  
+    cardinality: int
+    required:bool = None
+
+def VARIABLE(worker,typee,identifier,value,required=None):
+    if hasattr(value,'__iter__'):
+        return Metadata(typee,value,identifier,len(value),required)
+    elif value == None:
+        return Metadata(typee,value,identifier,0,required)
+    else:
+        return Metadata(typee,value,identifier,1,required)
+
+def SPLIT(worker,target, SEPARATOR, LOCK=None, UNLOCK=None):
+    if LOCK is not None and UNLOCK is not None:
+        result, temp, block = [], [], 0
+        for CHAR in target.value:
+            if CHAR == LOCK:
+                block += 1
+            elif CHAR == UNLOCK:
+                block -= 1
+            elif CHAR == SEPARATOR and block == 0:
+                result.append(temp)
+                temp = []
+            if CHAR != SEPARATOR:
+                temp.append(CHAR)
+        if len(temp) != 0:
+            result.append(temp)
+        return result
+    else:
+        return [stringa.strip() for stringa in target.value.split(SEPARATOR)]
 '''
-# Test
+# Declarative-programming
+# Functional-programming
+# Logic programming
+# Constraint programming
+# Constraint logic programming
 '''
-class TEST:
-    def __init__(self, *model):
-        self.model = model
-
-    def __call__(self,worker):
-        return self.check(worker)
-
-    def check(self,worker):
-        for test in self.model:
-            function, expected_result, input_value = test
-            actual_result,actual_name,actual_data = function(worker,input_value)
-            if actual_result != expected_result:
-                print(f"{actual_name} non passa il test con [{input_value}|{actual_data}]: {actual_result} in {function.identifier}")
-                exit(1)
-            else:
-                print(f"{actual_name} passa il test con [{input_value}|{actual_data}]: {actual_result} in {function.identifier}")
-
-TARGET = "_target"
+TARGET = '@Target'
 OUTPUT = tuple[bool, str, list]
+# There are 2 nullary operations: Always true , Never true, unary falsum
+Nullary = "Nullary"
+# There are 2 unary operations: Unary identity , Unary negation
+Unary = 'Unary'
+# There are 16 possible truth functions of two binary variables, each operator has its own name.
+Binary = 'Binary'
+# x*y == y*x : proprieta binaria
+Commutative = "Commutative"
+# (x*y)*z == x*(y*z) : proprieta binaria
+Associative = 'Associative'
+# Sentece is 'today is sunday' e una informazione
+Sentence = ''
+# Model is possible world PW := {P=True,Q=False}
+Model = ''
+# Knowledge-base is a set of sentencs kwnow by knowledge-based agent
+knowledge = 'Knowledge'
 
-class BASE():
-    necessity = []
-    def change(self,work,args):
-        for x in work:
-            if type(work[x]) == type([]):
-                for idz, z in enumerate(work[x]):
-                    if z in args:
-                        work[x][idz] = args[z]
-            elif type(work[x]) == type(''):
-                if work[x] in args:
-                    work[x] = args[work[x]]
-    
-    def start(self,items):
-        self.necessity = []
-        for item in items:
-            if type(item) == type(""):
-                if item.startswith('_'):
-                    self.necessity.append(item)
-                
-    def splice(self,work,item):
-        for req in item.requirement():
-                
-            #print('TOT',tot)
-            if type(req) == type(''):
-                #print(work[TARGET])
-                if req.startswith('_') and req[1:].isdigit():
-                    if len(work[TARGET]) > int(req[1:]):
-                        work[req] = work[TARGET][int(req[1:])]
-                    else:
-                            work[req] = req
-                tt = req[1:].split(':')
-                if req.startswith('_') and len(tt) == 2:
-                    if len(work[TARGET]) >= 3:
-                        if tt[1] == '':
-                            work[req] = work[TARGET][int(tt[0]):]
-                        else:
-                            work[req] = work[TARGET][int(tt[0]):int(tt[1])]
-                    else:
-                        work[req] = req
-                        #print(work[req])
-                    
-
-            if req == '_first':
-                work['_first'] = work[TARGET][0]
-            if req == '_last':
-                work['_last'] = work[TARGET][-1]
-
-    def requirement(self):
-        return self.necessity
-
+def swap_constant_to_variable(datawork,database):
+    out = datawork.copy()
+    for key in datawork:
+        name = datawork[key]
+        if type(name) == type(''):
+            if name in database and name.startswith('@'):
+                #print("???->",args[name],args,name)
+                out[key] = database[datawork[key]]
+    return out
 '''
-# Logic
+||| 
+|||
 '''
-class EXPRESSION(BASE):
-    def __init__(self, identifier, expression, **kwargs):
-        self.necessity = [TARGET]
+class DATUM:
+    def __init__(self, identity, value=None, transformer=None, *args):
+        self.identity = identity
+        self.identifier = None
+        self.value = value
+        self.args = args
+        self.transformer = transformer
+
+    def __call__(self, worker, variables):
+        transformed = {}
+        if self.transformer:
+            if self.value in variables:
+                value = Metadata('string', variables[self.value], 'test', 1, None)
+                transformed_data = self.transformer(worker, value, *self.args)
+                if isinstance(transformed_data, Metadata):
+                    transformed[self.identifier] = transformed_data.value
+                else:
+                    transformed[self.identifier] = transformed_data
+                if self.identity and not self.identity(worker, transformed[self.identifier])[0]:
+                    #worker.app.logger.error(f"Not passed Identity: {self.identity}:{transformed[self.identifier]}:{variables[self.value]}")
+                    transformed[self.identifier] = None
+            else:
+                worker.app.logger.error(f"{self.value} is not in {variables}")
+        else:
+            worker.app.logger.error("No action assigned")
+        return variables | transformed
+'''
+||| Logic
+||| - Un'espressione può essere costituita da constanti, variabili, expressioni, operatori e parentesi
+'''
+class EXPRESSION:
+    '''
+    ||| Inizializzazione: __init__
+    ||| identifier: L'identificatore dell'espressione.
+    ||| expression: L'espressione logica da valutare.
+    ||| variables: Un dizionario che associa variabili ai loro valori.
+    '''
+    def __init__(self, identifier, expression, **variables):
         self.identifier = identifier
-        self.logic = expression
-        #self.kwargs[TRANSFORMED] = kwargs.get("TRANSFORM")
-        self.data = kwargs
-
-        for x in kwargs:
-            self.necessity.append(x)
-
-        
-
+        self.expression = expression
+        self.symbol = ':='
+        self.variables = variables
+    '''
+    ||| Metodo: __str__
+    ||| - Restituisce una stringa che rappresenta la formula logica.
+    ||| - Se ci sono variabili, le elenca insieme alla formula.
+    ||| - Altrimenti, restituisce solo la formula.
+    '''
+    # Returns string formula representing logical sentence.
     def __str__(self):
-        return f"{self.identifier} := {str(self.logic)}"
+        # Q := A,B: (A==1) AND (B==A)
+        if len(self.variables) == 0: var = None
+        else: var = ",".join(self.variables)
 
-    def requirement(self):
-        return self.logic.requirement()
-    
-    def __call__(self, worker,target=None,**kwargs)-> OUTPUT:
-        # trasforma i dati 
-        new = dict(**kwargs)
-
-        if type(target) == type(dict()):
-            new.update(target)
+        if var != None:
+            return f"{self.identifier} {self.symbol} {var} : {str(self.expression)}"
         else:
-            new[TARGET] = target
-        
-        cc = None
-        
-        for d in self.data:
-            cc = self.data[d].COPY(worker)
-            #print(cc.GET())
-            if cc.GET() == 'FFF':
-                cc.SET_TEMP(worker,kwargs.copy())
-                #print("--------------------------------------------------------------------------")
-                new[d] = cc.TTT(worker)
-            else:
-                cc.SET_TEMP(worker,new[cc.GET()])
-            #print(cc.TTT)
-            if cc.TTT != None:
-                new[d] = cc.TTT(worker)
-            #print("###",new[d])
+            return f"{self.identifier} {self.symbol} {str(self.expression)}"    
+    '''
+    ||| Metodo: __call__
+    ||| - Valuta l'espressione logica.
+    ||| - Aggiorna le variabili con i loro valori.
+    ||| - Applica eventuali trasformazioni alle variabili.
+    ||| - Restituisce il risultato dell'espressione.
+    '''
+    def __call__(self, worker,unary=None,**variables)-> OUTPUT:
+        #knowledge = dict()
+        data = dict()
+        data[TARGET] = unary
+        data.update(variables)
 
-        #print("------------------------------------------------------",self.identifier,new)
-        return self.logic(worker,new)
-
-class TRAN(BASE):
-    def __init__(self, logica,da,a,cont=False):
-        self.logica = logica
-        self.da = da
-        self.a = a
-        self.cont = cont
-        self.start([da])
-
-    def __str__(self):
-        return f"{self.logica} == {self.a}"
-    
-    def __call__(self,worker, args):
-        
-        #print(args)
-        work = dict({})
-        if self.da in args:
-            
-            if self.cont == False:
-                work[self.a] = args[self.da]
-            else:
-                a = []
-                a.append(args[self.da])
-                work[self.a] = a
-                
-        
-        #print('#001 ',work,self.logica)
-
-        return self.logica(worker,work)
-
-class EQL(BASE):
-    def __init__(self, A,B):
-        self.A = A
-        self.B = B
-        self.start([A,B])
-
-    def __str__(self):
-        return f"{self.A} == {self.B}"
-    
-    def __call__(self,worker, args):
-        work = dict({'A':self.A,'B':self.B})
-        for x in work:
-            #print(x,work[x])  
-            if type(work[x]) == type(''):
-                #if work[x].startswith('@') and work[x][len(work[x])-1] == '@':
-                if work[x] in args:
-                    work[x] = args[work[x]]
-                        #print("ver11",args)
-
-        return OUTPUT((self.logic(work['A'],work["B"]),EQL.__name__,work))
-    
-    def logic(self,TARGET,TEST):
-        #print(type(TARGET),":",TARGET,"==",type(TEST),":",TEST)
-        if TARGET == TEST:return True
-        else: return False
-
-class EQL_LESS():
-    def __init__(self, A,B):
-        self.A = A
-        self.B = B
-
-    def __str__(self):
-        return f"{self.A} <= {self.B}"
-    
-    def __call__(self,worker, args):
-        work = dict({'A':self.A,'B':self.B})
-        for x in work:
-            #print(x,work[x])  
-            if type(work[x]) == type(''):
-                #if work[x].startswith('@') and work[x][len(work[x])-1] == '@':
-                if work[x] in args:
-                    work[x] = args[work[x]]
-                        #print("ver11",args)
-
-        return OUTPUT((self.logic(work['A'],work["B"]),EQL.__name__,work))
-    
-    def logic(self,TARGET,TEST):
-        #print(TARGET,TEST)
-        #print(type(TARGET),":",TARGET,"==",type(TEST),":",TEST)
-        if TARGET <= TEST:return True
-        else: return False
-
-class COUNT(BASE):
-    def __init__(self, targer,count,counted,logic=EQL_LESS):
-        self.target = targer
-        self.count = count
-        self.counted = counted
-        #print(counted)
-        self.bb = logic
-        self.ll = logic(TARGET,counted)
-        self.start([targer,count,counted])
-    def __str__(self):
-        return str(self.ll).replace(TARGET,f"{self.count} in {self.target}")
-    def __call__(self,worker, args):
-        work = dict({'target':self.target,'count':self.count,'counted':self.counted})
-        for x in work:
-            if type(work[x]) == type(''):
-                #if work[x].startswith('@') and work[x][len(work[x])-1] == '@':
-                if work[x] in args:
-                    work[x] = args[work[x]]
-        #print(work)
-        self.ll = self.bb(TARGET,work['counted'])
-
-        return OUTPUT((self.logic(work['target'],work["count"]),COUNT.__name__,work))
-    
-    def logic(self,target,TEST):
-        #print("--------------->",target)
-        if self.ll(None,{TARGET:target.count(TEST)})[0]:
-            return True
+        '''if isinstance(variables, dict):
+            for key in variables:
+                data['@'+key] = variables[key]
         else:
-            return False
+            data[TARGET] = unary'''
+
+        for key in self.variables:
+            datum = self.variables[key]
+            datum.identifier = '@' + key
+            data.update(datum(worker, data))
+        #print(self.identifier,data)
+        return self.expression(worker, data)
+
+'''
+||| AND: Logical conjunction ∧
+||| commutative, associative
+||| insieme = intersezione,
+### In teoria dei reticoli, la congiunzione logica rappresenta il minimo comune multiplo.
+||| false -> 1,1,data
+||| true -> 1,N,data
+'''
+class AND:
+    def __init__(self, *conjuncts):
+        self.identifier = 'AND'
+        self.conjuncts = conjuncts
+        self.symbol = '∧'
+        self.operation = Binary
+
+    def __repr__(self):
+        expressions = []
+        for item in self.conjuncts:
+            if isinstance(item, EXPRESSION):
+                exp = '(' + str(item).split(':=')[1] + ')'
+            else:
+                exp = '(' + str(item) + ')'
+            expressions.append(exp)
+        return f' {self.symbol} '.join(expressions)
+
+    def __call__(self, worker, variables) -> OUTPUT:
+        tree = []
+        branch = []
+        for index, item in enumerate(self.conjuncts):
+            boolean, identifier, stated = item(worker, variables)
+            if not boolean:
+                branch.append(stated)     
+                tree.append((identifier,boolean))
+                return OUTPUT((False, tuple((AND,tuple(tree))), tuple(branch)))
+            else:
+                branch.append(stated)     
+                tree.append((identifier,boolean))
         
-class SORT():
-    def __init__(self, GREATER,MINOR):
-        self.target = GREATER
-        self.check = MINOR
-    def __str__(self):
-        return " == "
-    def __call__(self, args):
-        destro,sinstro = self.target,self.check
-        print(args)
-        if self.target == TARGET:
-            destro = args[TARGET]
-            
-        if self.check == TARGET:
-            sinstro = args[TARGET]
+        return OUTPUT((True, tuple((AND,tuple(tree))), tuple(branch)))
+'''
+||| OR
+'''
+class OR:
+    def __init__(self, *disjuncts):
+        self.identifier = 'OR'
+        self.disjuncts = disjuncts
+        self.symbol = '∨'
 
-        return OUTPUT((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
+    def __repr__(self):
+        #disjunct_strings = [f"({str(d)})" for d in self.disjuncts]
+        #return " ∨ ".join(disjunct_strings)
+        expressions = []
+        for item in self.disjuncts:
+            if isinstance(item, EXPRESSION):
+                exp = '(' + str(item).split(':=')[1] + ')'
+            else:
+                exp = '(' + str(item) + ')'
+            expressions.append(exp)
+        return f' {self.symbol} '.join(expressions)
+
+    def __call__(self, worker, variables):
+        #tuple([d.identifier for d in self.disjuncts])
+        branch_faithless = []
+        tre = []
+        for index,item in enumerate(self.disjuncts):
+            if isinstance(item, EXPRESSION):
+                boolean, identifier, stated = item(worker, variables[TARGET],**variables)
+            else:
+                boolean, identifier, stated = item(worker, variables)
+            if boolean: 
+                branch_faithless.append(stated)     
+                tre.append((identifier,boolean))
+                #return OUTPUT((True, (stated[0],boolean,stated[2]), stated))
+                return OUTPUT((True, tuple((OR,tuple(tre))), tuple(branch_faithless)))
+            else:
+                #faithless_states.setdefault(item.identifier, []).append(stated)
+                branch_faithless.append(stated)     
+                tre.append((identifier,boolean))
+        
+        return OUTPUT((False, tuple((OR,tuple(tre))), tuple(branch_faithless)))
+'''
+||| NOT
+'''
+class NOT:
+    def __init__(self,operand):
+        self.identifier = 'NOT'
+        self.operand = operand
+        self.symbol = '¬'
+    def __call__(self,worker,args) -> OUTPUT:
+        boolean,identifier,stated = self.operand(worker,args)
+        return (not boolean,NOT,stated)
+    def __repr__(self):
+        return f"{self.symbol}({str(self.operand)})"
     
-    def logic(self,TARGET,TEST):
-        print(type(TARGET),":",TARGET,">",type(TEST),":",TEST)
-        if TARGET < TEST:return True
-        else: return False
-
-class SORT_EQL():
-    def __init__(self, GREATER,MINOR):
-        self.target = GREATER
-        self.check = MINOR
-    def __str__(self):
-        return " == "
-    def __call__(self, args):
-        destro,sinstro = self.target,self.check
-        print(args)
-        if self.target == TARGET:
-            destro = args[TARGET]
-            
-        if self.check == TARGET:
-            sinstro = args[TARGET]
-
-        return OUTPUT((self.logic(destro,sinstro),"EQL",[destro,sinstro]))
-    
-    def logic(self,TARGET,TEST):
-        print(type(TARGET),":",TARGET,"<",type(TEST),":",TEST)
-        if TARGET >= TEST:return True
-        else: return False
-
-class OR(BASE):
+'''
+||| IMPLICATION
+'''
+class IMPLICATION:
     def __init__(self,*args):
+        self.identifier = 'IMPLICATION'
         self.items = args
-        self.necessity = []
-        for arg in args:
-            #print(arg)
-            self.necessity.append(arg.requirement())
-    def __repr__(self):
-        out = str(self.items[0])
-        for i in self.items[1:]:
-            out += ' | ' + str(i) 
-        return out
-    def __call__(self,worker,args):
-        work = {}
-        work.update(args)
-        self.change(work,args)
-        
-        vvv = []
-        ggg = [work]
-        for item in self.items:
-            self.splice(work,item)
-            vvv.append(item.identifier)
-            
-            tested = item(worker,work)
-            ggg.append(tested[2])
-            
-            #print("TESTED ---------------------------------------",tested)
-            if tested[0] == True:
-                return (tested[0],item.identifier,ggg)
-        return (False,vvv,ggg)
+        self.necessity = set({})
+        self.symbol = '→'
 
-class AND(BASE):
-    def __init__(self,*args,**kwargs):
+'''
+||| Consequence/Entailment
+'''
+class CONSEQUENCE:
+    def __init__(self,*args):
+        self.identifier = 'Consequence'
         self.items = args
-        self.stran = kwargs
-        self.necessity = []
-        for arg in args:
-            #print(arg)
-            cccc = arg.requirement()
+        self.necessity = set({})
+        self.symbol = '⊨'
+
+'''
+||| BICONDITIONAL
+'''
+class BICONDITIONAL:
+    def __init__(self,*args):
+        self.identifier = 'BICONDITIONAL'
+        self.items = args
+        self.necessity = set({})
+        self.symbol = '↔'
+'''
+||| ALL
+'''
+class ALL:
+    def __init__(self,set,*args):
+        self.identifier = 'ALL'
+        self.set = set
+        self.items = args
+        self.symbol = '∀'
+    def __repr__(self):
+        return f"per ogni {self.set} {self.items[0]}"
+    def __call__(self, worker, variables) -> OUTPUT:
+        liv_0 = []
+        liv_1 = []
+
+        tree = []
+
+        if isinstance(self.set,dict):
+            data = self.set
+        else:
+            data = swap_constant_to_variable({'set':self.set},variables)
+
+        
+        for x in data['set']:
+            #print(data,x)
+            for con in self.items:
+                inn = variables
+                inn['@x'] = x
+                inn[TARGET] = x
+                #print(con,self.items)
+                #print(inn)
+                if isinstance(con, EXPRESSION):
+                    boolean, identifier, stated = con(worker, inn[TARGET],**inn)
+                else:
+                    boolean, identifier, stated = con(worker, inn[TARGET],**inn)
+                if boolean:
+                    tree.append((inn[TARGET],identifier,stated))
+                else:
+                    tree.append((inn[TARGET],identifier,stated))
+                    pass
+                liv_1.append(boolean)
             
-            if len(cccc) <= 1:
-                self.necessity.append(cccc)
-            else:
-                for nnn in cccc:
-                    if len(nnn) != 0:
-                        self.necessity.append(nnn)
-                pass
-    def __repr__(self):
-        out = str(self.items[0])
-        for i in self.items[1:]:
-            out += ' & ' + str(i) 
-        return out
-    def __call__(self,worker,args):
-        work = {}
-        work.update(args)
-        w_out = []
+            #faithless_identifiers.append(con.identifier)
+            liv_0.append(any(liv_1))
+            liv_1.clear()
         
-        self.change(work,args)
-        uni = {}
-        for itx,item in enumerate(self.items):
-            uni = {}
-            for req in self.stran:
-                
-                if req[1:] == str(itx):
-                    #print("-----------------------------------------------------------------",work[self.stran[req][0]])
-                    worker.job.SET_TEMP(worker,work[self.stran[req][0]])
-                    if self.stran[req][4] == False: 
-                        uni[self.stran[req][1]] = self.stran[req][2](worker.job,worker,*self.stran[req][3])
-                    else:
-                        uni[self.stran[req][1]] = [self.stran[req][2](worker.job,worker,*self.stran[req][3])]
-            
-            TESTED = item(worker,work|uni)
-            w_out.append(TESTED[2])
-            #print(TESTED)
-            if TESTED[0] == False : return (False,"AND",w_out)
-        return (True,"AND",w_out)
-
-class EACH(BASE):
-    def __init__(self, logic, target, compare):
-        self.target = target
-        self.compare = compare
-        self.check = logic
-        self.exem = logic(target,compare)
-        self.start([target,compare])
-
-
-    def __repr__(self):
-        return str(self.exem).replace(str(self.compare),f"$next in {self.compare}")
-        #return "MINI"
-    
-    def __call__(self,worker, args):
-        # Data job
-        work = dict({'target':self.target,'com':self.compare.copy()})
-        #print(work,args)
-        # Trasform data
-        for x in work:
-            if type(work[x]) == type([]):
-                for idz, z in enumerate(work[x]):
-                    if z in args:
-                        work[x][idz] = args[z]
-            elif type(work[x]) == type(''):
-                if work[x] in args:
-                    work[x] = args[work[x]]
-
-        lall = []
-        temp = []
-        # Do job
-        for x in work['target']:
-            temp = []
-            for target in work['com']:
-                #print("=====>",target,x)
-                check_d = self.check(target,x)
-                check = check_d(worker,work)
-                temp.append(check[0])
-            lall.append(any(temp))
-
-        if len(lall) == 0:
-            return (False,'EACH',work)
+        out_boolean = all(liv_0)
+        if out_boolean:
+            return OUTPUT((out_boolean,ALL,tuple(tree)))
+        else:
+            return OUTPUT((out_boolean,ALL,tuple(tree)))
         
-        #print(lall)
-        return (all(lall),"minimum",work)
-    
-class EACH2(BASE):
-    def __init__(self, logic, target):
-        self.target = target
-        self.check = logic
-        #self.exem = logic(target,compare)
-        self.start([target])
-
-
-    def __repr__(self):
-        return 'str(self.exem).replace(str(self.compare),f"$next in {self.compare}")'
-        #return "MINI"
-    
-    def __call__(self,worker, args):
-        # Data job
-        work = dict({'target':self.target})
-        self.change(work,args)
-        lall = []
-        temp = []
-        # Do job
-        for x in work['target']:
-            check = self.check(worker,x)
-            
-            lall.append(check[0])
-
-        #print("4444 ###########",all(lall))
-        return (all(lall),"minimum",work)
-
-class EACHONE():
-    def __init__(self, logic, target, compare):
-        self.target = target
-        self.compare = compare
-        self.check = logic
-        self.exem = logic(target,compare)
-
-    def __repr__(self):
-        return str(self.exem).replace(str(self.compare),f"$next in {self.compare}")
-        #return "MINI"
-    
-    def __call__(self,worker, args):
-        # Data job
-        work = dict({'target':self.target,'com':self.compare.copy()})
-        #print(work,args)
-        # Trasform data
-        for x in work:
-            if type(work[x]) == type([]):
-                for idz, z in enumerate(work[x]):
-                    if z in args:
-                        work[x][idz] = args[z]
-            elif type(work[x]) == type(''):
-                if work[x] in args:
-                    work[x] = args[work[x]]
-
-        lall = []
-        temp = []
-        # Do job
-        for x in work['target']:
-            temp = []
-            for target in work['com']:
-                #print("=====>",target,x)
-                check_d = self.check(target,x)
-                check = check_d(worker,work)
-                temp.append(check[0])
-            lall.append(any(temp))
-
+class ATTRIBUTE:
+    def __init__(self, targets,attributes):
+        self.identifier = ATTRIBUTE.__name__
+        self.targets = targets
+        self.attributes = attributes
+    def __str__(self):
+        return 'str(self.ll).replace(TARGET,f"{self.count} in {self.target}")'
+    def __call__(self, worker, variables):
+        data = dict(variables)
+        tor = []
+        #for target in self.targets:
+        if data[TARGET] != None:
+            for target in data[TARGET]:
+                for attribute in self.attributes:
+                    tor.append(hasattr(target, attribute))
+        else:
+            return OUTPUT((False,self.identifier,data))
         
-        #print(lall)
-        return (all(lall),"minimum",work)
-#maximum
+
+        return OUTPUT((all(tor),self.identifier,data))
+    
+class TYPE:
+    def __init__(self, targets, types):
+        self.identifier = TYPE.__name__
+        self.targets = targets
+        self.types = types
+    def __str__(self):
+        return 'str(self.ll).replace(TARGET,f"{self.count} in {self.target}")'
+    def __call__(self, worker, variables):
+        data = dict(variables)
+        tor = []
+        #for target in self.targets:
+        if data[TARGET] != None:
+            '''for target in data[TARGET]:
+                for attribute in self.types:
+                    if type(target) == type(attribute):
+                        tor.append(True)
+                    else:tor.append(False)'''
+            for attribute in self.types:
+                if type(data[TARGET]):
+                    tor.append(True)
+                else:tor.append(False)
+        else:
+            #print("FFF",target)
+            OUTPUT((False,self.identifier,data))
         
-class SEQUENTIAL():
-    def __init__(self, logic, target, compare):
+        return OUTPUT((all(tor),self.identifier,data))
+'''
+||| SEQUENTIAL
+'''
+class SEQUENTIAL:
+    def __init__(self, expression, target, compare):
+        self.identifier = SEQUENTIAL.__name__
+        #self.necessity = self.start([target,compare])
         self.target = target
         self.targets = compare
-        self.check = logic
-        self.exem = logic(target,compare)
+        self.expression = expression
+        self.exem = expression(target,compare)
 
     def __repr__(self):
         return str(self.exem).replace(str(self.targets),f"$next in {self.targets}")
-        #return "MINI"
     
-    def __call__(self, w,args):
+    def __call__(self, worker, variables):
         # Data job
-        work = dict({'target':self.target,'check':self.targets})
-        #print(work,args)
+        data = dict({'target':self.target,'check':self.targets})
         # Trasform data
-        for x in work:
-            if type(work[x]) == type(''):
-                if work[x] in args:
-                    work[x] = args[work[x]]
+        self.Varname(data,variables)
         # Do job
-        for idx, target in enumerate(work['target']):
-            check_d = self.check(str(type(target)),work['check'][idx])
-            check = check_d(w,work)
-            if not check[0]:return (False,"seq",work)
+        for idx, target in enumerate(data['target']):
+            expression = self.expression(str(type(target)),data['check'][idx])
+            boolean,identifier,stated = expression(worker,data)
+            if not boolean:return OUTPUT((False,self.identifier,stated))
 
-        return (True,"seq",work)
+        return OUTPUT((True,self.identifier,data))
+'''
+||| EQL:Logical equality
+'''
+class EQL:
+    def __init__(self, left, right):
+        self.identifier = EQL.__name__
+        self.symbol = '=='
+        self.operation = Binary
+        self.left = left
+        self.right = right
+
+    def __str__(self):
+        return f"{self.left} {self.symbol} {self.right}"
+    
+    def __call__(self, worker, variables):
+        data = dict({'left':self.left,'right':self.right})
+        data = swap_constant_to_variable(data,variables)
+        boolean = data['left'] == data['right']
+        tree_a = []
+
+        f = (data['left'],self.symbol,data['right'])
+
+        return OUTPUT((boolean,EQL,f))
+'''
+||| EQL_LESS
+'''
+class EQL_LESS:
+    def __init__(self, left, right):
+        self.identifier = EQL_LESS.__name__
+        self.symbol = '<='
+        self.operation = Binary
+        self.left = left
+        self.right = right
+
+    def __str__(self):
+        return f"{self.left} {self.symbol} {self.right}"
+    
+    def __call__(self, worker, variables):
+        data = dict({'left':self.left,'right':self.right})
+        data = swap_constant_to_variable(data,variables)
+        boolean = data['left'] <= data['right']
+        return OUTPUT((boolean,EQL_LESS,data))
+'''
+||| EQL_GREATER
+'''
+class EQL_GREATER:
+    def __init__(self, left, right):
+        self.identifier = EQL_GREATER.__name__
+        self.symbol = '>='
+        self.operation = Binary
+        self.left = left
+        self.right = right
+
+    def __str__(self):
+        return f"{self.left} {self.symbol} {self.right}"
+    
+    def __call__(self, worker, variables):
+        data = dict({'left':self.left,'right':self.right})
+        data = swap_constant_to_variable(data,variables)
+        boolean = data['left'] >= data['right']
+        return OUTPUT((boolean,EQL_GREATER,data))
+'''
+||| EQL_NOT
+'''
+class EQL_NOT:
+    def __init__(self, left, right):
+        self.identifier = EQL_NOT.__name__
+        self.symbol = '≠'
+        self.operation = Binary
+        self.left = left
+        self.right = right
+
+    def __str__(self):
+        return f"{self.left} {self.symbol} {self.right}"
+    
+    def __call__(self, worker, variables):
+        data = dict({'left':self.left,'right':self.right})
+        data = swap_constant_to_variable(data,variables)
+        boolean = data['left'] != data['right']
+        return OUTPUT((boolean,EQL_NOT,data))
+'''
+||| Count
+'''
+class COUNT:
+    def __init__(self, target,count,counted,binary=EQL):
+        self.identifier = COUNT.__name__
+        
+        self.target = target
+        self.count = count
+        self.counted = counted
+        
+        self.binary = binary
+        self.ll = binary(TARGET,counted)
+        self.symbol = 'Ʃ'
+    
+    def __str__(self):
+        return str(self.ll).replace(TARGET,f"{self.count} in {self.target}")
+
+    def __call__(self,worker, variables):
+        data = dict({'target':self.target,'count':self.count,'counted':self.counted})
+        data = swap_constant_to_variable(data,variables)
+        
+        
+
+        if data['count'] == None:
+            #print(len(data['target']),data['target'])
+            targ = len(data['target'])
+        else:
+            if data['target'] == None:
+                targ = 0
+            else:
+                targ = data['target'].count(data['count'])
+        #print(targ,data,variables)
+        expression = self.binary(targ,data['counted'])
+        boolean,identifier,stated = expression(worker,None)
+
+        #tree = (data['count'],'==',(data['target'],'#',data['count']))
+        tree = ((data['target'],targ,data['count']),stated[1],stated[2])
+        #tree = (data['count'],COUNT,data['target'])
+
+        if boolean: return OUTPUT((True,(COUNT,True),stated))
+        else: return OUTPUT((False,(COUNT,False),stated))
+'''
+||| INCLUSION
+'''
+class INCLUSION:
+    def __init__(self,left_set,right_set):
+        self.identifier = 'INCLUSION'
+        self.right = right_set
+        self.left = left_set
+        self.symbol = '⊆'
+        self.symbolNot = '⊈'
+        self.symbol2Not = '⊄'
+        self.symbol2 = '⊂'
+    def __repr__(self):
+        return f"{self.left} {self.symbol} {self.right}"
+    def __call__(self, worker, variables):
+        data = dict({'left':self.left,'right':self.right})
+        data = swap_constant_to_variable(data,variables)
+        output = (data['left'],self.symbol,data['right'])
+        branch = []
+        if isinstance(data['left'],type(None)):
+            return OUTPUT((False, tuple((INCLUSION,False)), tuple(output)))
+            #return OUTPUT((False,INCLUSION,data))
+        for x in data['left']:
+            result = any(item == x for item in data['right'])
+            if not result:
+                #print(x)
+                #branch.append(stated)     
+                #tre.append((identifier,boolean))
+                #return OUTPUT((False, tuple((INCLUSION,False)), tuple(output)))
+                return OUTPUT((False, tuple((INCLUSION,False)), tuple(output)))
+        
+        return OUTPUT((True, tuple((INCLUSION,True)), tuple(output)))
+'''
+|||EXISTS
+'''
+class EXISTS:
+    def __init__(self,element,set):
+        self.identifier = 'EXISTS'
+        self.element = element
+        self.set = set
+        self.symbol = '∃'
+        self.symbolNot = '∉'
+    def __repr__(self):
+        return f"{self.element} {self.symbol} {self.set}"
+    def __call__(self, worker, variables):
+        constants = dict({'element':self.element,'set':self.set})
+        data = swap_constant_to_variable(constants,variables)
+        
+        if 'element' not in data:
+            return OUTPUT((False, tuple((INCLUSION,False)), tuple(None,self.symbol,data['set'])))
+        #print(data,variables)
+        output = (data['element'],self.symbol,data['set'])
+        for x in data['set']:
+            if x == data['element']:return OUTPUT((True, tuple((MEMBERSHIP,True)), tuple(output)))
+        #return OUTPUT((False,MEMBERSHIP,data))
+        
+        return OUTPUT((False, tuple((MEMBERSHIP,False)), tuple(output)))
+
+'''
+||| Membership
+'''
+class MEMBERSHIP:
+    def __init__(self,element,set):
+        self.identifier = 'MEMBERSHIP'
+        self.element = element
+        self.set = set
+        self.symbol = '∈'
+        self.symbolNot = '∉'
+    def __repr__(self):
+        return f"{self.element} {self.symbol} {self.set}"
+    def __call__(self, worker, variables):
+        constants = dict({'element':self.element,'set':self.set})
+        data = swap_constant_to_variable(constants,variables)
+        print(data)
+        if 'element' not in data:
+            return OUTPUT((False, tuple((INCLUSION,False)), tuple(None,self.symbol,data['set'])))
+        #print(data,variables)
+        output = (data['element'],self.symbol,data['set'])
+        for x in data['set']:
+            if x == data['element']:return OUTPUT((True, tuple((MEMBERSHIP,True)), tuple(output)))
+        #return OUTPUT((False,MEMBERSHIP,data))
+        
+        return OUTPUT((False, tuple((MEMBERSHIP,False)), tuple(output)))
+'''
+||| ERROR
+'''
+def FAILED(data,failures,expression):
+    splited = []
+    tot = 0
+    msg = str(expression)
+    orr = SPLIT(None,VARIABLE(None,'STRING','FAILED::S',msg.split(':=')[1]),'∨','(',')')
+    oand = SPLIT(None,VARIABLE(None,'STRING','FAILED::S',msg.split(':=')[1]),'∧','(',')')
+    if len(orr) != 1:
+        for x in orr:
+            splited.append("".join(x))
+    elif len(oand) != 1:
+        for x in oand:
+            splited.append("".join(x))
+    #print(orr,oand,splited,'===>',failures,data)
+    if hasattr(failures,'__len__'):
+        for failure in failures:
+            if failure in data:
+                for idx,x in enumerate(data[failures]):
+                    sub = splited[tot]
+                    msg = msg.replace(sub,"\033[91m ("+STRING(failures,x)+') \033[0m')
+                    '''if idx == len(splited) -1:
+                        msg = msg.replace(sub,"\033[91m ("+STRING(failures,x)+') \033[0m')
+                    else:
+                        msg = msg.replace(sub," \033[92m ("+STRING(failures,x)+') \033[0m')'''
+    else:
+        print("=======>",failures,data)
+        if failures in data:
+            for idx,x in enumerate(data[failures]):
+                for y in x:
+                    sub = splited[y]
+                    print("=======>",sub)
+                
+                    msg = msg.replace(sub,"\033[91m ("+STRING(failures,x[y])+') \033[0m')
+                    #msg = msg.replace(sub," \033[92m ("+STRING(failures,x)+') \033[0m')
+
+    return msg
+'''
+||| STRING
+'''
+def STRING(typ,data):
+    #print(data,typ,'==',str(ALL))
+    
+    if str(typ) == "<class 'logic.EQL'>":
+        return f"{data['left']} == {data['right']}"
+    elif str(typ) == "<class 'logic.ALL'>":
+        return f"per ogni x "
+    elif str(typ) == "<class 'logic.INCLUSION'>":
+        return f"{data['left']} ⊆ {data['right']}"
+    elif str(typ) == "<class 'logic.MEMBERSHIP'>":
+        return f"{data['element']} ∈ {data['set']}"
+    else:
+        return "NOT_IMPL"
+            

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<column>
+    <container bgcolor="ft.colors.LIGHT_BLUE" height='42' >
+        <row expand=1 spacing=0 ></row>
+        <import resource="application-context.xml"/>
+    </container>
+    <container bgcolor="ft.colors.LIGHT_BLUE" height=42 >
+        <import resource="application-context.xml"/>
+    </container>
+    <container bgcolor="ft.colors.LIGHT_BLUE" height=42 >
+        <import resource="application-context.xml"/>
+    </container>
+</column>

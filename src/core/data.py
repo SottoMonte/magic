@@ -1,191 +1,244 @@
-import object
-import logic
-import copy
+from dataclasses import dataclass,asdict,astuple
+import dicttoxml
+from logic import EXPRESSION,EQL,COUNT,ATTRIBUTE,TARGET,AND,TYPE,ALL,EQL_NOT
+#import json
+from enum import Enum
 
-# ------------------------------------------------------------------------------
-#   Un dato è caratterizzato da 3 proprietà fondamentali: tipo, cardinalità e valore.
-# ------------------------------------------------------------------------------
+'''
+# Declarative-programming
+# Functional-programming
+# LOGIC programming
+# Constraint programming
+# Constraint LOGIC programming
+'''
 
-class variable(object.OBJECT):
-    '''
-    ||| -- VARIABLE -- [CARDINALITY,VALUE,TYPE]
-    |||[DATA]: CARDINALITY,VALUE,TYPE
-    |||[logic]: HOMOGENEOUS,HETEROGENEOUS,EMPTY,INIT
-    |||[ACT]: SET,GET,ECHO
-    |||[EVENTS]: SET,SETTING,GET,GETTING
-    '''
+'''
+||| Un dato è caratterizzato da 3 proprietà fondamentali: tipo, cardinalità e valore.
+'''
 
-    def __init__(
-        self,
-        TYPE=None,
-        identifier = "@ID",
-        VALUE=None,
-        *args,
-        **kwargs,
-        #PROPERTY:dict=dict(),
-        #EVENTS:dict=dict(),#quando viene cambiato il valore x 
-    ) -> None:
-        # imposta valore
-        self._INDEX = 0
-        self.identifier = identifier
-        # controlla tipo
-        if TYPE != None:
-            if str(type(VALUE)) in TYPE:
-                print("PASS",identifier,type(VALUE),TYPE)
-                #self._TYPE = str(type(VALUE))
-                self._TYPE = TYPE
-                self._VALUE = VALUE
-            elif str(type(VALUE)) == str(type(None)):
-                print("PASS",identifier,type(VALUE),TYPE)
-                self._TYPE = TYPE
-                self._VALUE = VALUE
+Events = Enum('Events', ['Modified', 'Created', 'Eliminated'])
+
+    
+Identity = EXPRESSION('Identity',EQL("1","1"))
+Singleton = EXPRESSION('Identity',EQL("1","1"))
+Data = EXPRESSION('Identity',EQL("1","1"))
+Metadata = EXPRESSION('Identity',EQL("1","1"))
+Recursion = EXPRESSION('Identity',EQL("1","1"))
+PureFunction = EXPRESSION('Identity',EQL("1","1"))
+Iterable = EXPRESSION('Iterable',EQL("1","1"))
+Homogeneous = EXPRESSION('Homogeneous',EQL("1","1"))
+Heterogeneous = EXPRESSION('Heterogeneous',EQL("1","1"))
+
+Character = EXPRESSION('Character',AND(
+    #ATTRIBUTE([TARGET],['__len__']),
+    COUNT(TARGET,'',2)
+))
+
+String = EXPRESSION('String',AND(
+    #LOGIC.ATTRIBUTE([LOGIC.TARGET],['__len__']),
+    TYPE([TARGET],[""])
+))
+
+Iterable = EXPRESSION('Iterable',AND(
+    ATTRIBUTE([TARGET],['__iter__']),
+))
+
+Empty = EXPRESSION('Empty',AND(
+    ATTRIBUTE([TARGET],['__len__']),
+    ALL(TARGET,[[],None])
+))
+
+Matter = EXPRESSION('Matter',AND(
+    ALL(EQL_NOT,TARGET,[[],None])
+))
+
+
+@dataclass(frozen=True)
+class Metadata:
+    type: str
+    value: str
+    identifier: str  
+    cardinality: int
+    required:bool = None
+    driver:str = None
+
+def VARIABLE(worker,typee,identifier,value,required=None):
+    if hasattr(value,'__iter__'):
+        return Metadata(typee,value,identifier,len(value),required)
+    elif value == None:
+        return Metadata(typee,value,identifier,0,required)
+    else:
+        return Metadata(typee,value,identifier,1,required)
+    
+def CONSTANT(worker,typee,identifier,value,required=None):
+    if hasattr(value,'__iter__'):
+        return Metadata(typee,value,identifier,len(value),required)
+    elif value == None:
+        return Metadata(typee,value,identifier,0,required)
+    else:
+        return Metadata(typee,value,identifier,1,required)
+
+def DATA(worker,typee,identifier,value,required=None):
+    if hasattr(value,'__iter__'):
+        return Metadata(typee,value,identifier,len(value),required)
+    elif value == None:
+        return Metadata(typee,value,identifier,0,required)
+    else:
+        return Metadata(typee,value,identifier,1,required)
+
+
+def SET(worker,target,value):
+    if hasattr(value,'__iter__'):
+        return Metadata(target.typee,value,target.identifier,len(value),target.required)
+    elif value == None:
+        return Metadata(target.typee,value,target.identifier,0,target.required)
+    else:
+        return Metadata(target.typee,value,target.identifier,1,target.required)
+
+def GET(worker,target):
+    #return asdict(target)
+    return target.value
+
+def CAD(worker,target):
+    return target.cardinality
+
+def TYPE(worker,target):
+    pass
+
+def FIRST(worker,target):
+    if hasattr(target.value,'__iter__'):
+        if len(target.value) > 0:
+            return target.value[0]
+        else:
+            return None
+    else:
+        return None
+
+def LAST(worker,target):
+    if hasattr(target.value,'__iter__'):
+        if len(target.value) > 0:
+            return target.value[-1]
+        else:
+            return None
+    else:
+        return None
+
+def ELEMENT(worker,target,idx):
+    #print(target)
+    if hasattr(target.value,'__iter__'):
+        if 0 <= idx < len(target.value):
+            return target.value[idx] 
+        elif - len(target.value) < idx <= -1:
+            return target.value[idx]
+        else:
+            return None
+    else:
+        return None
+
+def RANGE(worker,target,start,end=None):
+    if hasattr(target.value,'__iter__'):
+        if 0 <= start < len(target.value) and end != start:
+            if end == None:
+                return target.value[start:]
             else:
-                print("NOT",identifier,type(VALUE),TYPE)
+                return target.value[start:end]
         else:
-            self._TYPE = TYPE
+            return []
+    else:
+        return None
 
-        # controlla il tipo variabile
-        if hasattr(VALUE,'__iter__'):
-            self._CARDINALITY = len(VALUE)
-            self.Identity = logic.EXPRESSION('Identity',logic.EACH(logic.EQL,logic.TARGET,TYPE))
-        else:
-            self._CARDINALITY = 1
-            self.Identity = logic.EXPRESSION('Identity',logic.EACH(logic.EQL,logic.TARGET,self._TYPE))
-
-        #self.OPERATORS = dict()
-        #self.OPERATORS['='] = self.SET
-
-        '''for KEY in PRO:
-            if hasattr(self,KEY):
-                if PROPERTY[KEY](None,getattr(self,KEY))[0]:
-                    print(KEY,"true")
-                else:
-                    print("false")
-                #self.IDENTITY = logic.EXPRESSION('VALUE',logic.OR())'''
-        if 'transform' in kwargs:
-            self.transform = kwargs['transform']
-        else:
-            self.transform = None
+def DIVISION(worker,target,SEPARATOR, LOCK=None, UNLOCK=None):
+    new = []
+    temp = []
         
-    '''
-    |||[DATA]
-    '''
-    #CARDINALITY = logic.EXPRESSION('CARDINALITY',logic.EQL(logic.TARGET,type(1)))
-    #TYPE = logic.EXPRESSION('TYPE',logic.EQL(logic.TARGET,type("str")))
-    #VALUE = logic.EXPRESSION('VALUE',logic.EQL(logic.TARGET,type("str")))
-    '''
-    |||[logic]
-    '''
-    Identity = logic.EXPRESSION('Identity',logic.EQL("1","1"))
-    Iterable = logic.EXPRESSION('Iterable',logic.EQL("1","1"))
-    Homogeneous = logic.EXPRESSION('Homogeneous',logic.EQL("1","1"))
-    Heterogeneous = logic.EXPRESSION('Heterogeneous',logic.EQL("1","1"))
-    '''
-    |||[ACTION]
-    '''
-    
-    #@object.OBJECT.ACTION(logic.EXPRESSION("SET",logic.minimum(logic.EQL,logic.TARGET,["<class 'str'>"])),['asd'])
-    @object.OBJECT.ACTION(None,logic.EXPRESSION("SET",logic.SEQUENTIAL(logic.EQL,logic.TARGET,["<class 'str'>"])))
-    def SET(self,worker,VALUE)->None:
-        id = self.Identity(worker,str(type(VALUE)))
-        
-        if id[0]:
-            worker.app.GET().logger.debug(f"SET pass the bound {id[1]} with {self.Identity} and data := {id[2]}")
-            self._VALUE = VALUE
-        else:
-            worker.app.GET().logger.error(f"SET Not pass the bound {id[1]} with {self.Identity} and data := {id[2]}")
-    
-    def SET_TEMP(self,worker,VALUE):
-        self._VALUE = VALUE
-
-    def GET(self)->any:
-        return self._VALUE
-    
-    def FIRST(self,worker):
-        return self._VALUE[0]
-    def LAST(self,worker):
-        return self._VALUE[-1]
-        
-    def RANGE(self,worker,a=None,b=None):
-        if 0 <= a < len(self._VALUE):
-            print("BOOOOM!!!")
-            if b == None:
-                
-                return self._VALUE[a:]
+    for x in target.value:
+        if x == SEPARATOR:
+            if len(temp) == 1:
+                new.append(temp[0])
             else:
-                return self._VALUE[a:b]
+                new.append(temp.copy())
+            temp.clear()
         else:
-            print('KABOOM!')
-            return "self._VALUE"
+            temp.append(x)
+    if len(temp) == 1:
+        new.append(temp[0])
+    else:
+        new.append(temp.copy())
+    return new
+
+def SPLIT(worker,target, SEPARATOR, LOCK=None, UNLOCK=None):
+    if LOCK is not None and UNLOCK is not None:
+        result, temp, block = [], [], 0
+        for CHAR in target.value:
+            if CHAR == LOCK:
+                block += 1
+            elif CHAR == UNLOCK:
+                block -= 1
+            elif CHAR == SEPARATOR and block == 0:
+                result.append(temp)
+                temp = []
+            if CHAR != SEPARATOR:
+                temp.append(CHAR)
+        if len(temp) != 0:
+            result.append(temp)
+        return result
+    else:
+        return [stringa.strip() for stringa in target.value.split(SEPARATOR)]
+
+def UNION(worker,target,value):
+    if hasattr(target.value,'__iter__'):
+        return SET(worker,target,target.value + value)
+    else:
+        return SET(worker,target,target.value + value)
+
+def DEL(worker,target,value):
+    pass
+
+def UNPACK(worker,target)->any:
+        if hasattr(target.value,'__iter__'):
+            if len(target.value) == 1:
+                return target.value[0]
+            else:return target.value
+        else:
+            return None
         
-    def ELEMENT(self,worker,a=None):
-        if 0 <= a < len(self._VALUE):
-            return self._VALUE[a]
-        else:
-            return self._VALUE
-        
-    def NONE(self,worker):
-        for x in self._VALUE:
-            print(x)
-        return self._VALUE
-    
-    def TTT(self,worker):
-        #return worker.loop.GET().run_until_complete(self.transform(self,worker))
-        return self.transform(self,worker)
-    
-    def GG(self,worker):
-        return worker.loop.GET().run_until_complete(self.transform(self,worker))
-        #return self.transform(self,worker)
-    
-    def TYPE(self,worker)->str:
-        return str(self._TYPE)
-    
-    def COPY(self,worker)->any:
-        return copy.deepcopy(self)
-    
-    #@object.OBJECT.ACTION(logic.EXPRESSION("ECHO",logic.EQL(1,1)),['asd'])
-    def CAD(self,worker)->any:
-        return self._VALUE
-    
-    def SIZE(self,worker)->any:
-        return self._VALUE
-    
-    def ADD(self,worker,VALUE)->None:
-        OUT = self.Identity(worker,[str(type(VALUE))])
-        #print(OUT)
-        if OUT[0]  and hasattr(self._VALUE,'__iter__'):
-            #print(self._VALUE,VALUE)
-            self._VALUE = self._VALUE | VALUE
-            #self._VALUE.append(VALUE)
-        else:
-            print("ERROR ADD")
-    
-    def __iter__(self):
-        return self
-    
-    def __str__(self):
-        return f"{self._TYPE}:{self.identifier} := {str(self._VALUE)}"
-    
-    def __repr__(self):
-        return f"{str(self._TYPE):<40.40}:{self.identifier:<15.15} = {str(self._VALUE):<30.30}"
-    
-    def __next__(self):
-        if hasattr(self._VALUE,'__iter__'):
-            if self._INDEX >= len(self._VALUE):
-                self._INDEX = 0
-                raise StopIteration
+def PACK(worker,target)->any:
+    return [target.value]
+
+def NONE(worker,target):
+    return target
+
+def STRING(worker,target):
+    return f"<{target.required}> {target.typee:<15.15}:{target.identifier:<25.25} := {target.cardinality}:{target.value}"
+
+def XML(worker,target):
+    return dicttoxml.dicttoxml(asdict(target), attr_type=False).decode()
+
+def METADATA(*metadata):
+    def decorator(function):
+        async def wrapper(*args, **kwargs):
+            print('ALL:',metadata)
             try:
-                result = self._VALUE[self._INDEX]
-            except:
-                result = self._VALUE[next(iter(self._VALUE))]
-            
-            self._INDEX += 1
-            return result
-        else:
-            if self._INDEX >= 1:
-                raise StopIteration
-            self._INDEX += 1
-            return self._VALUE
-    
+                print('ARGS:',args)
+                await function(*args)
+            except Exception as e:
+                print('Something went wrong.', e)
+        return wrapper
+    return decorator
 
-class constant(variable):pass
+def TUPLE(worker,string):
+    stack = []
+    risultato = []
+
+    for char in string:
+        if char == "(":
+            stack.append(risultato)
+            risultato = []
+        elif char == ")":
+            tupla_annidata = tuple(risultato)
+            risultato = stack.pop()
+            risultato.append(tupla_annidata)
+        elif char == ",":
+            risultato.append(int(char))
+
+    return tuple(risultato)

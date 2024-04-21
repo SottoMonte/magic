@@ -2,83 +2,69 @@ import sys
 sys.path.append('src/core/')
 import grammar
 import logic
-import worker
+import worker as WORKER
+import asyncio
+
+TOKEN = logic.EXPRESSION('TOKEN',logic.OR(
+    grammar.CSTRING,grammar.STRING,
+    grammar.SPECIAL,grammar.KEYWORD,
+    grammar.OPERATOR,grammar.SEPARATOR,
+    grammar.CLOSE,grammar.IDENTIFIER,
+    grammar.LETTER,grammar.NUMBER))
 
 '''
-||| Input(STRING) | Output(TOKENS)
+||| TOKENIZER: produttore di token
 '''
-async def LEXER(WORKER:worker.WORKER):
-    '''
-    ||| Funzione che crea flusso di tokens
-    '''
-    # keword,opreatori,identificatori,numeri
-    #check_token = logic.expression('check_token',logic.OR(grammar.BINARY,grammar.SEPARATOR,grammar.KEYWORD,grammar.OPERATOR,grammar.CLOSE,grammar.LETTER))
-    TOKEN = logic.EXPRESSION('TOKEN',logic.OR(grammar.STRING,grammar.SPECIAL,grammar.KEYWORD,grammar.OPERATOR,grammar.SEPARATOR,grammar.CLOSE,grammar.IDENTIFIER,grammar.LETTER,grammar.NUMBER))
-    CTOKEN = logic.EXPRESSION('CTOKEN',logic.OR(grammar.STRING_2,grammar.IDENTIFIER,grammar.LETTER,grammar.NUMBER))
+async def TOKENIZER(worker,**constants):
+    stringa_c = constants['output'] + constants['current']
+    stringa_f = stringa_c + constants['next']
+    index = constants['index']
     
-    '''async def TOKENIZER(self,end):
-        
-        presente_long = CTOKEN(WORKER,self[:end])
-        presente_string = TOKEN(WORKER,[self[:end]])
-        
-        if presente_long[0] or presente_string[0]:
-            #print('[TOKEN]',presente_long,presente_string,self[:end])
-            #for idx, x in enumerate(self):
-            a = await TOKENIZER(self,end+1)
-            #print("====@@@@>",a)
-            print('[LONG]',a,self[:end])
-            if a[0] != None:
-                #print('[EX]',self[:end])
-                return a
-            else:
-                #print("[FA]",self[:end])
-                return (a[0],a[1])
-        else:
-            #print('[!TOKEN]',presente_long,presente_string,self[:end-1])
-            print(len(self[:end]))
-            presente_long_2 = CTOKEN(WORKER,self[:end-1])
-            presente_string_2 = TOKEN(WORKER,[self[:end-1]])
+    if 'onset' in constants:
+        onset_token = constants['onset']
+    else:
+        onset_token = 1
+    if 'endset' in constants:
+        endset_token = constants['endset']
+    else:
+        endset_token = 1
+    
+    if 'row' in constants:
+        row_token = constants['row']
+    else:
+        row_token = 1
+    
+    if constants['current'] == '\n':
+        row_token = constants['row'] + 1
+        endset_token = 0
+        onset_token = 0
 
-            if type(presente_string_2[1]) == type(''):
-                return (presente_string_2[1],end-1)
-            elif type(presente_long_2[1]) == type(''):
-                return (presente_long_2[1],end-1)
-            else:
-                return(None,end-1)'''
-    # Lexer
-    async def TOKENIZER(self,n):
-        TOKENIZER.token += self 
-        presente_long = CTOKEN(WORKER,TOKENIZER.token)
-        futuro_char = CTOKEN(WORKER,TOKENIZER.token+n)
-        futuro_string = TOKEN(WORKER,[TOKENIZER.token+n])
-        presente_string = TOKEN(WORKER,[TOKENIZER.token])
+    present = TOKEN(worker, stringa_c)
+    future = TOKEN(worker, stringa_f)
 
-        if presente_long[0] and (futuro_string[0] == False and  futuro_char[0] == False and presente_string[0] == False ):
-            #print(TOKENIZER.token)
-            #print(f"---------->{TOKENIZER.token}\n\n{futuro_string_2}\n\n{presente_long}\n\n{futuro_char}\n\n{futuro_string}\n\n{presente_string}")
-            await WORKER.SPEAK('PARSER',(presente_long[1],TOKENIZER.token))
-            TOKENIZER.token = ""
-        elif futuro_string[0] == False and presente_string[0] == False and presente_long[0] == False :
-            #print(f"---------->{TOKENIZER.token}\n\n{futuro_string_2}\n\n{presente_long}\n\n{futuro_char}\n\n{futuro_string}\n\n{presente_string}")
-            presente_string = TOKEN(WORKER,[TOKENIZER.token[:-1]])
-            #print("---------->",TOKENIZER.token,presente_string)
-            await WORKER.SPEAK('PARSER',(presente_string[1],TOKENIZER.token[:-1]))
-            TOKENIZER.token = TOKENIZER.token[-1]
-            
-            #presente_string = TOKEN(WORKER,[TOKENIZER.token[:-1]])
-            #await WORKER.SPEAK('PARSER',(presente_string[1],TOKENIZER.token[:-1]))
-            
-        else:
-            
-            pass
-        
-        
-    TOKENIZER.token = ""
+    if present[0] == True and future[0] == False:
+        endset_token += 1
+        await WORKER.SPEAK(worker,f"tokens:{constants['file']}|{row_token}:{onset_token}:{endset_token}",stringa_c)
+        #await WORKER.ECHO(worker,out+c)
+        #print(constants)
+        #print(f"ON:'{onset_token}',END:'{endset_token}',ROW:'{row_token}',Token:'{stringa_c}'")
+        return {'output':'','onset':endset_token,'endset':endset_token,'row':row_token}
+    else:
+        endset_token += 1
+        return {'output':stringa_c,'onset':onset_token,'endset':endset_token,'row':row_token}
+'''
+||| Lexer: Analizza una sequenza di caratteri e li converte in una sequenza di token.
+'''
+async def FILE(worker,**constants):
+    #print(constants)
+    file = constants['pattern'].replace('files:', '')
+    await WORKER.READER(worker,file,TOKENIZER,'char')
+
+async def LEXER(worker):
     '''
     ||| Legge la sorgente e applica la funzione tokenizer
     '''
-    await WORKER.READER('sorgente.mm',TOKENIZER,'char')
-    '''
-    ||| Invia segnale parser fine flusso
-    '''
-    await WORKER.SPEAK('PARSER',None)
+    await asyncio.sleep(1)
+    await WORKER.READER(worker,worker.app.args[1],TOKENIZER,'char')
+    await WORKER.EVENT(worker,'files:*',FILE)
+    await WORKER.HEAR(worker,'files:*')

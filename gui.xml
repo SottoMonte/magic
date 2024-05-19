@@ -1,13 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<column>
-    <container bgcolor="ft.colors.LIGHT_BLUE" height='42' >
-        <row expand=1 spacing=0 ></row>
-        <import resource="application-context.xml"/>
-    </container>
-    <container bgcolor="ft.colors.LIGHT_BLUE" height=42 >
-        <import resource="application-context.xml"/>
-    </container>
-    <container bgcolor="ft.colors.LIGHT_BLUE" height=42 >
-        <import resource="application-context.xml"/>
-    </container>
-</column>
+<Column  expand="1" >
+    <Container bgcolor="#cccccc">
+        <Row expand="1">
+            <IconButton id="button1" icon="ADD" on_click="plus_click">
+            </IconButton>
+            <TextField id="box" bgcolor="#555555" height='42' >0</TextField>
+            <IconButton id="button2" icon="REMOVE" on_click="men_click">
+            </IconButton>
+        </Row>
+    </Container>
+    <Container expand="True" bgcolor="#888888">
+        <Row expand="True">
+            <Text size="25" color="#ff505f">Mode:edit</Text>
+            <Text>Mode:edit</Text>
+            <Text>Mode:edit</Text>
+            <Text>Mode:edit</Text>
+        </Row>
+    </Container>
+    <Container height="40" bgcolor="#444444">
+        <Row expand="1">
+            <Text>Blocco:10,Riga:1,Col:10,Spaces:4</Text>
+            <Text>Mode:edit</Text>
+            <Text>ASCII</Text>
+        </Row>
+    </Container>
+</Column>

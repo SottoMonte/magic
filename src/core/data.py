@@ -78,14 +78,6 @@ def CONSTANT(worker,typee,identifier,value,required=None):
     else:
         return Metadata(typee,value,identifier,1,required)
 
-def DATA(worker,typee,identifier,value,required=None):
-    if hasattr(value,'__iter__'):
-        return Metadata(typee,value,identifier,len(value),required)
-    elif value == None:
-        return Metadata(typee,value,identifier,0,required)
-    else:
-        return Metadata(typee,value,identifier,1,required)
-
 
 def SET(worker,target,value):
     if hasattr(value,'__iter__'):
